@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <script src="index.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+    }
+
+    .header {
+      flex: 0 0 auto;
+      margin-bottom: 16px;
+    }
+
+    .header h2 {
+      margin: 0 0 12px 0;
+      color: var(--uxp-host-text-color);
+    }
+
+    .button-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .info-text {
+      font-size: 12px;
+      color: var(--uxp-host-text-color-secondary);
+      margin-top: 8px;
+    }
+
+    .thumbnail-grid {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: block;
+      padding: 16px;
+      background: #1a1a1a;
+      border-radius: 4px;
+    }
+
+    .thumbnail-item {
+      position: relative;
+      background: #2a2a2a;
+      border: 2px solid #444;
+      border-radius: 8px;
+      padding: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 180px;
+    }
+
+    .thumbnail-item:hover {
+      border-color: var(--uxp-host-link-color);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+
+    .thumbnail-image {
+      width: 100%;
+      height: 120px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      background: #333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #888;
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .thumbnail-info {
+      width: 100%;
+      text-align: center;
+    }
+
+    .thumbnail-filename {
+      font-size: 11px;
+      color: #fff;
+      margin: 2px 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: bold;
+    }
+
+    .thumbnail-time {
+      font-size: 10px;
+      color: #aaa;
+      margin: 2px 0;
+    }
+
+    .thumbnail-size {
+      font-size: 9px;
+      color: #888;
+    }
+
+    .delete-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(255, 0, 0, 0.8);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .thumbnail-item:hover .delete-btn {
+      opacity: 1;
+    }
+
+    .delete-btn:hover {
+      background: rgba(255, 0, 0, 1);
+    }
+
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--uxp-host-text-color-secondary);
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+
+    sp-button {
+      flex: 1;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>保存历史记录</h2>
+      <div class="button-group">
+        <div style="display: flex; gap: 4px; flex: 2;">
+            <select id="saveFormat" style="width: 70px; height: 32px; background: #3E3E3E; color: #FFFFFF; border: 1px solid #4B4B4B; border-radius: 4px; padding: 0 4px; outline: none; cursor: pointer;">
+                <option value="png" selected>PNG</option>
+                <option value="jpg">JPG</option>
+                <option value="tga">TGA</option>
+                <option value="psd">PSD</option>
+            </select>
+            <sp-button id="saveCurrentBtn" variant="cta" style="flex: 1;">另存为</sp-button>
+        </div>
+        <sp-button id="testRecordBtn" variant="secondary" style="flex: 1;">测试记录</sp-button>
+        <sp-button id="clearHistoryBtn" variant="secondary" style="flex: 1;">清空历史</sp-button>
+      </div>
+      <div class="info-text">
+        💡 使用 Ctrl+S 或菜单保存时会自动记录到历史<br>
+        💡 双击缩略图可将当前打开的文档覆盖保存到该文件
+      </div>
+    </div>
+
+    <div id="thumbnailContainer" class="thumbnail-grid">
+      <div class="empty-state">
+        <div class="empty-state-icon">📁</div>
+        <div>暂无保存历史</div>
+        <div style="font-size: 11px; margin-top: 8px;">点击"保存当前文档"开始记录</div>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>
