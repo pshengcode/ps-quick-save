@@ -19,20 +19,20 @@
       "id": "mainPanel",
       "label": "保存历史",
       "minimumSize": {
-        "width": 600,
-        "height": 850
+        "width": 400,
+        "height": 560
       },
       "maximumSize": {
         "width": 2000,
         "height": 2000
       },
       "preferredDockedSize": {
-        "width": 600,
-        "height": 700
+        "width": 400,
+        "height": 460
       },
       "preferredFloatingSize": {
-        "width": 600,
-        "height": 700
+        "width": 400,
+        "height": 460
       },
       "icons": [
         {

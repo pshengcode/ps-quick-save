@@ -79,11 +79,65 @@ async function getDocumentInfo(doc) {
         
         if (result && result[0]) {
             const docInfo = result[0];
+            
+            let width = docInfo.width?._value || doc.width || 0;
+            let height = docInfo.height?._value || doc.height || 0;
+            
+            // 获取分辨率：尝试多个来源
+            let resolution = docInfo.resolution?._value;
+            if (!resolution && docInfo.imageResolution) {
+                 resolution = docInfo.imageResolution._value;
+            }
+            if (!resolution) {
+                resolution = doc.resolution;
+            }
+            if (!resolution) {
+                resolution = 72;
+            }
+
+            const resolutionUnit = docInfo.resolution?._unit;
+            
+            // 确保分辨率为 PPI (Pixels Per Inch)
+            if (resolutionUnit === "pixelsPerCentimeterUnit") {
+                resolution = resolution * 2.54;
+            }
+
+            const widthUnit = docInfo.width?._unit;
+            const heightUnit = docInfo.height?._unit;
+            
+            // 辅助函数：转换单位为像素
+            const convertToPixels = (value, unit, res) => {
+                if (!unit || unit === "pixelsUnit") return value;
+                switch (unit) {
+                    case "inchesUnit": return value * res;
+                    case "centimetersUnit": return (value / 2.54) * res;
+                    case "millimetersUnit": return (value / 25.4) * res;
+                    case "pointsUnit": return (value / 72) * res;
+                    case "picasUnit": return (value / 6) * res;
+                    default: return value; // 未知单位，保持原值
+                }
+            };
+
+            let finalWidth = convertToPixels(width, widthUnit, resolution);
+            let finalHeight = convertToPixels(height, heightUnit, resolution);
+
+            // 安全检查：如果 DOM 属性存在且数值远大于计算值（通常是因为分辨率获取失败导致计算偏小）
+            // 例如：512px @ 300ppi，Points=123。如果分辨率误用72，计算结果为123px。
+            // 此时 doc.width 为 512，远大于 123，应使用 doc.width。
+            if (doc.width && doc.width > finalWidth * 1.5) {
+                console.log(`[文档信息] 修正宽度: 计算值 ${finalWidth} -> DOM值 ${doc.width}`);
+                finalWidth = doc.width;
+            }
+            if (doc.height && doc.height > finalHeight * 1.5) {
+                console.log(`[文档信息] 修正高度: 计算值 ${finalHeight} -> DOM值 ${doc.height}`);
+                finalHeight = doc.height;
+            }
+
             return {
                 name: docInfo.title || doc.name || '未命名',
                 path: docInfo.fileReference?._path || doc.path || null,
-                width: docInfo.width?._value || doc.width || 0,
-                height: docInfo.height?._value || doc.height || 0,
+                width: Math.round(finalWidth),
+                height: Math.round(finalHeight),
                 saved: docInfo.hasBackgroundLayer !== undefined
             };
         }
@@ -514,10 +568,16 @@ async function overwriteSave(targetPath) {
             currentHistory.unshift(updatedRecord);
             
             saveHistory(currentHistory);
-            renderThumbnails();
+            renderThumbnails(targetPath);
+            
+            // 1.2秒后重新渲染以移除提示状态，确保提示消失
+            setTimeout(() => {
+                renderThumbnails();
+            }, 1200);
         }
 
-        await showAlert('成功', `已覆盖保存到: ${targetPath.split(/[/\\]/).pop()}`);
+        // 成功时不弹窗，显示进度条动画
+        // 动画已在 renderThumbnails 中通过 activePath 参数触发
     } catch (error) {
         console.error('覆盖保存失败:', error);
         if (error.message && error.message.includes('invalid file token')) {
@@ -609,7 +669,7 @@ function formatTime(timestamp) {
 }
 
 // 渲染缩略图
-function renderThumbnails() {
+function renderThumbnails(activePath = null) {
     console.log('[渲染] 开始渲染缩略图...');
     
     const container = document.getElementById('thumbnailContainer');
@@ -618,21 +678,12 @@ function renderThumbnails() {
         return;
     }
     
-    console.log('[渲染] ✅ 容器元素找到:', container);
-    const containerStyle = window.getComputedStyle(container);
-    console.log('[渲染] 容器样式 - display:', containerStyle.display);
-    console.log('[渲染] 容器样式 - visibility:', containerStyle.visibility);
-    console.log('[渲染] 容器样式 - height:', containerStyle.height);
-    console.log('[渲染] 容器样式 - minHeight:', containerStyle.minHeight);
-    console.log('[渲染] 容器实际高度:', container.offsetHeight, 'px');
-    console.log('[渲染] 容器当前子元素数:', container.children.length);
+    // ... (省略日志)
     
     const history = getHistory();
-    console.log(`[渲染] 历史记录数量: ${history.length}`);
-    console.log('[渲染] 历史记录详情:', JSON.stringify(history, null, 2));
 
     if (history.length === 0) {
-        console.log('[渲染] 无历史记录，显示空状态');
+        // ... (省略空状态)
         container.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">📁</div>
@@ -648,19 +699,14 @@ function renderThumbnails() {
     let html = '';
     
     history.forEach((record, index) => {
-        console.log(`[渲染] 渲染记录 ${index + 1}: ${record.filename}`);
-        
-        // 权限状态图标
+        // 权限状态
         const hasToken = !!record.token;
-        const tokenIcon = hasToken 
-            ? `<div title="已获取写入权限" style="position: absolute; top: 8px; left: 8px; color: #4caf50; font-size: 16px; cursor: help; z-index: 5;">🔓</div>`
-            : `<div title="未获取权限 (双击保存时需确认)" style="position: absolute; top: 8px; left: 8px; color: #f44336; font-size: 16px; cursor: help; z-index: 5;">🔒</div>`;
+        const itemClass = hasToken ? 'thumbnail-item has-token' : 'thumbnail-item';
 
-        // 获取文件扩展名 (优先使用保存的格式，否则尝试从路径解析)
+        // 获取文件扩展名
         let ext = record.format || 'FILE';
         if (!record.format) {
             const parts = record.path.split('.');
-            // 简单的校验：如果分割后的最后一部分太长或包含路径分隔符，说明可能没有扩展名
             if (parts.length > 1) {
                 const possibleExt = parts.pop().toUpperCase();
                 if (possibleExt.length <= 5 && !possibleExt.includes('/') && !possibleExt.includes('\\')) {
@@ -669,25 +715,43 @@ function renderThumbnails() {
             }
         }
 
+        // 处理显示名称
+        let displayName = record.filename;
+        if (record.path) {
+            const nameFromPath = record.path.split(/[/\\]/).pop();
+            if (nameFromPath) {
+                displayName = nameFromPath;
+            }
+        } else if (displayName && (displayName.includes('/') || displayName.includes('\\'))) {
+            displayName = displayName.split(/[/\\]/).pop();
+        }
+
+        // 归一化路径用于比较
+        const normalize = p => p ? p.replace(/\\/g, '/').toLowerCase() : '';
+        const isActive = activePath && normalize(record.path) === normalize(activePath);
+
+        // 成功提示 HTML
+        let successOverlayHtml = '';
+        if (isActive) {
+             successOverlayHtml = '<div class="success-overlay">✔ 已保存</div>';
+        }
+
         html += `
-            <div class="thumbnail-item" style="background: #2a2a2a; border: 2px solid #444; border-radius: 8px; padding: 12px; min-height: 220px; display: block; position: relative; margin-bottom: 16px;" data-path="${record.path}" data-id="${record.id}">
-                ${tokenIcon}
-                <button class="delete-btn" style="position: absolute; top: 8px; right: 8px; background: rgba(255, 0, 0, 0.8); color: white; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 18px; line-height: 28px; z-index: 10;">×</button>
-                <div class="thumbnail-image" style="width: 100%; height: 100px; background: #333; display: flex; align-items: center; justify-content: center; color: #888; font-size: 32px; font-weight: bold; border-radius: 4px; margin-bottom: 12px;">${ext}</div>
-                <div class="thumbnail-info" style="width: 100%; text-align: center;">
-                    <div style="font-size: 13px; color: #fff; margin: 6px 0; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${record.filename}">${record.filename}</div>
-                    <div style="font-size: 10px; color: #4a9eff; margin: 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: help;" title="${record.path}">📁 ${record.path}</div>
-                    <div style="font-size: 11px; color: #aaa; margin: 4px 0;">${formatTime(record.timestamp)}</div>
-                    <div style="font-size: 10px; color: #888;">${Math.round(record.width)} × ${Math.round(record.height)}</div>
+            <div class="${itemClass}" data-path="${record.path}" data-id="${record.id}">
+                <button class="delete-btn">×</button>
+                <div class="thumbnail-image" style="width: 100%; height: 64px; background: #333; display: flex; align-items: center; justify-content: center; color: #888; font-size: 20px; font-weight: bold; border-radius: 4px; margin-bottom: 6px;">${ext}</div>
+                <div class="thumbnail-info" style="width: 100%; text-align: center; overflow: hidden;">
+                    <div style="font-size: 11px; color: #fff; margin: 2px 0; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${displayName}">${displayName}</div>
+                    <div style="font-size: 9px; color: #aaa; margin: 1px 0;">${formatTime(record.timestamp)}</div>
+                    <div style="font-size: 9px; color: #666;">${Math.round(record.width)}px × ${Math.round(record.height)}px</div>
                 </div>
+                ${successOverlayHtml}
             </div>
         `;
     });
     
     container.innerHTML = html;
-    container.style.minHeight = '400px';
-    container.style.background = '#1a1a1a';
-    container.style.padding = '16px';
+    // 样式已在 CSS 中定义
     
     // 绑定事件
     const items = container.querySelectorAll('.thumbnail-item');
@@ -705,6 +769,35 @@ function renderThumbnails() {
             }
         };
         
+        // 鼠标悬停显示路径
+        item.addEventListener('mouseenter', () => {
+            const pathDisplay = document.getElementById('pathDisplay');
+            if (pathDisplay) {
+                // 优先显示路径，如果没有则显示文件名
+                let text = record.path || record.filename || '无路径信息';
+                
+                // 确保显示扩展名：如果路径/文件名中没有点号，尝试追加格式
+                if (text !== '无路径信息' && !text.includes('.')) {
+                    const ext = record.format || 'psd'; // 默认追加 psd
+                    text += '.' + ext;
+                }
+
+                pathDisplay.textContent = text;
+                pathDisplay.title = text;
+                // 确保文字颜色可见 (使用 CSS 变量适配主题)
+                pathDisplay.style.color = 'var(--uxp-host-text-color)';
+            }
+        });
+        
+        item.addEventListener('mouseleave', () => {
+            const pathDisplay = document.getElementById('pathDisplay');
+            if (pathDisplay) {
+                // 恢复为空，但保留占位符以防布局跳动
+                pathDisplay.innerHTML = '&nbsp;';
+                pathDisplay.title = '';
+            }
+        });
+
         // 双击事件
         item.ondblclick = async () => {
             const confirmed = await showConfirm(
@@ -900,20 +993,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 const docInfo = await getDocumentInfo(doc);
-                console.log('当前文档信息:');
-                console.log('- 名称:', docInfo.name);
-                console.log('- 路径:', docInfo.path || '无');
-                console.log('- 已保存:', docInfo.saved);
-                console.log('- 宽度:', docInfo.width);
-                console.log('- 高度:', docInfo.height);
                 
-                if (!docInfo.path) {
-                    await showAlert('提示', '文档还未保存过，请先保存文档（Ctrl+S）然后再测试');
-                    return;
+                // 生成随机路径以支持多次测试添加不同记录
+                const randomId = Math.floor(Math.random() * 100000);
+                let basePath = docInfo.path;
+                
+                if (!basePath) {
+                    basePath = "C:\\Test\\Untitled.psd";
                 }
                 
-                await recordDocumentToHistory('手动测试');
-                await showAlert('测试完成', '已尝试记录当前文档，请查看控制台日志和历史列表');
+                // 构造带随机数的测试路径
+                const lastDot = basePath.lastIndexOf('.');
+                let testPath;
+                if (lastDot > -1) {
+                    testPath = basePath.substring(0, lastDot) + "_Test_" + randomId + basePath.substring(lastDot);
+                } else {
+                    testPath = basePath + "_Test_" + randomId;
+                }
+                
+                console.log(`[测试] 生成随机路径: ${testPath}`);
+                
+                await recordDocumentToHistory('手动测试', testPath);
+                console.log('测试记录已添加');
             } catch (error) {
                 console.error('测试失败:', error);
                 await showAlert('错误', `测试失败: ${error.message}`);
