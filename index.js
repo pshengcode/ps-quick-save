@@ -47,14 +47,22 @@ function addToHistory(record) {
 }
 
 // 删除历史记录
-function removeFromHistory(id) {
+async function removeFromHistory(id) {
     const history = getHistory();
+    
+    // 删除对应的缩略图缓存
+    const itemToDelete = history.find(item => item.id === id);
+    if (itemToDelete && itemToDelete.path) {
+        await deleteThumbnailFromCache(itemToDelete.path);
+    }
+
     const newHistory = history.filter(item => item.id !== id);
     saveHistory(newHistory);
 }
 
 // 清空历史
-function clearHistory() {
+async function clearHistory() {
+    await deleteAllThumbnails();
     saveHistory([]);
 }
 
@@ -228,6 +236,214 @@ async function generateThumbnailSimple() {
     return null;
 }
 
+// 生成路径哈希
+function getPathHash(path) {
+    if (!path) return 'unknown';
+    // 简单的字符串哈希
+    let hash = 0, i, chr;
+    const str = path.replace(/\\/g, '/').toLowerCase(); // 归一化
+    if (str.length === 0) return hash;
+    for (i = 0; i < str.length; i++) {
+        chr = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + chr;
+        hash |= 0; // Convert to 32bit integer
+    }
+    // 转为无符号十六进制字符串，并处理负数
+    return "thumb_" + (hash >>> 0).toString(16);
+}
+
+// 生成并保存缩略图到缓存
+async function saveThumbnailToCache(doc, originalPath) {
+    try {
+        console.log('[缩略图缓存] 开始生成缓存缩略图:', originalPath);
+        const photoshop = require('photoshop');
+        // 安全获取 executeAsModal
+        const executeAsModal = photoshop.core ? photoshop.core.executeAsModal : null;
+        const { batchPlay } = photoshop.action;
+        const fs = require('uxp').storage.localFileSystem;
+        
+        // 1. 准备缓存目录
+        const dataFolder = await fs.getDataFolder();
+        let thumbFolder;
+        try {
+            // 优先尝试获取，如果不存在则创建
+            try {
+                thumbFolder = await dataFolder.getEntry("thumbnails");
+            } catch (e) {
+                thumbFolder = await dataFolder.createFolder("thumbnails", { ensure: true });
+            }
+        } catch (e) {
+            console.warn('[缩略图缓存] 文件夹准备失败:', e);
+            // 最后的尝试：清理同名文件
+            try {
+                const entry = await dataFolder.getEntry("thumbnails");
+                if (!entry.isFolder) {
+                    await entry.delete();
+                    thumbFolder = await dataFolder.createFolder("thumbnails", { ensure: true });
+                }
+            } catch (e2) {
+                console.error('[缩略图缓存] 无法创建 thumbnails 文件夹:', e2);
+                return false;
+            }
+        }
+        
+        // 2. 计算哈希文件名
+        const hash = getPathHash(originalPath);
+        const filename = hash + ".jpg";
+        
+        let thumbFile;
+        try {
+            // 尝试先删除旧文件（如果存在）
+            try {
+                const oldEntry = await thumbFolder.getEntry(filename);
+                if (oldEntry) await oldEntry.delete();
+            } catch (e) { /* 忽略不存在 */ }
+            
+            thumbFile = await thumbFolder.createFile(filename, { overwrite: true });
+        } catch (e) {
+            console.error('[缩略图缓存] 创建文件失败:', e);
+            return false;
+        }
+
+        const thumbToken = await fs.createSessionToken(thumbFile);
+        
+        // 3. 执行生成逻辑 (复制 -> 调整大小 -> 保存 -> 关闭)
+        const task = async () => {
+            // 复制文档
+            await batchPlay([{
+                _obj: "duplicate",
+                _target: [{ _ref: "document", _enum: "ordinal", _value: "targetEnum" }],
+                name: "temp_thumbnail_gen"
+            }], {});
+            
+            try {
+                // 获取当前文档（副本）尺寸
+                const result = await batchPlay([{
+                    _obj: "get",
+                    _target: [{ _ref: "document", _enum: "ordinal", _value: "targetEnum" }],
+                    _options: { dialogOptions: "dontDisplay" }
+                }], {});
+                
+                let width = 0, height = 0;
+                if (result && result[0]) {
+                    width = result[0].width._value;
+                    height = result[0].height._value;
+                }
+                
+                let resizeCmd = {
+                    _obj: "imageSize",
+                    constrainProportions: true,
+                    scaleStyles: true,
+                    resampleMethod: { _enum: "samplingMethod", _value: "bicubicAutomatic" }
+                };
+                
+                if (width >= height) {
+                    resizeCmd.width = { _unit: "pixelsUnit", _value: 128 };
+                } else {
+                    resizeCmd.height = { _unit: "pixelsUnit", _value: 128 };
+                }
+                
+                // 调整大小
+                await batchPlay([resizeCmd], {});
+                
+                // 保存为 JPG
+                await batchPlay([{
+                    _obj: "save",
+                    as: { _obj: "JPEG", quality: 8 },
+                    in: { _path: thumbToken, _kind: "local" },
+                    lowerCase: true,
+                    saveStage: { _enum: "saveStageType", _value: "saveSucceeded" }
+                }], {});
+            } finally {
+                // 无论成功失败，都尝试关闭副本 (不保存)
+                try {
+                    // 安全检查：确认当前文档是临时文档再关闭
+                    const docCheck = await batchPlay([{
+                        _obj: "get",
+                        _target: [{ _ref: "document", _enum: "ordinal", _value: "targetEnum" }],
+                        _options: { dialogOptions: "dontDisplay" }
+                    }], {});
+
+                    if (docCheck && docCheck[0] && docCheck[0].title === "temp_thumbnail_gen") {
+                        await batchPlay([{
+                            _obj: "close",
+                            saving: { _enum: "yesNo", _value: "no" },
+                            _target: [{ _ref: "document", _enum: "ordinal", _value: "targetEnum" }]
+                        }], {});
+                    } else {
+                        console.warn('[缩略图缓存] 当前文档不是临时文档，跳过关闭操作');
+                    }
+                } catch (e) {
+                    console.error('[缩略图缓存] 关闭临时文档失败:', e);
+                }
+            }
+        };
+
+        if (executeAsModal) {
+            await executeAsModal(task, { commandName: "生成缩略图缓存" });
+        } else {
+            console.warn('[缩略图缓存] executeAsModal 不可用，尝试直接执行');
+            await task();
+        }
+        
+        console.log('[缩略图缓存] 生成成功:', filename);
+        return true;
+        
+    } catch (error) {
+        console.error('[缩略图缓存] 生成失败:', error);
+        return false;
+    }
+}
+
+// 删除缓存中的缩略图
+async function deleteThumbnailFromCache(originalPath) {
+    try {
+        const fs = require('uxp').storage.localFileSystem;
+        const dataFolder = await fs.getDataFolder();
+        
+        try {
+            const thumbFolder = await dataFolder.getEntry("thumbnails");
+            const hash = getPathHash(originalPath);
+            const filename = hash + ".jpg";
+            
+            const file = await thumbFolder.getEntry(filename);
+            if (file) {
+                await file.delete();
+                console.log('[缩略图缓存] 已删除缓存文件:', filename);
+            }
+        } catch (e) {
+            // 文件不存在或文件夹不存在，忽略
+        }
+    } catch (error) {
+        console.error('[缩略图缓存] 删除操作出错:', error);
+    }
+}
+
+// 删除所有缩略图缓存
+async function deleteAllThumbnails() {
+    try {
+        const fs = require('uxp').storage.localFileSystem;
+        const dataFolder = await fs.getDataFolder();
+        
+        try {
+            const thumbFolder = await dataFolder.getEntry("thumbnails");
+            if (thumbFolder) {
+                const entries = await thumbFolder.getEntries();
+                for (const entry of entries) {
+                    if (entry.isFile) {
+                        await entry.delete();
+                    }
+                }
+                console.log('[缩略图缓存] 已清空所有缓存文件');
+            }
+        } catch (e) {
+            // 文件夹不存在，忽略
+        }
+    } catch (error) {
+        console.error('[缩略图缓存] 清空操作出错:', error);
+    }
+}
+
 // 生成缩略图
 async function generateThumbnail(docPath) {
     try {
@@ -346,7 +562,10 @@ async function saveCurrentDocument() {
         // 重新获取文档信息（保存后可能有变化）
         const updatedInfo = await getDocumentInfo(doc);
         
-        // 生成缩略图
+        // 生成并保存缩略图缓存
+        await saveThumbnailToCache(doc, savedPath);
+        
+        // 生成缩略图 (旧逻辑保留，但主要依赖缓存)
         const thumbnail = await generateThumbnail(savedPath);
 
         // 添加到历史
@@ -365,7 +584,7 @@ async function saveCurrentDocument() {
         addToHistory(record);
         renderThumbnails();
 
-        await showAlert('成功', `文档已另存为: ${docName}`);
+        // await showAlert('成功', `文档已另存为: ${docName}`);
     } catch (error) {
         console.error('保存文档失败:', error);
         await showAlert('错误', `保存失败: ${error.message}`);
@@ -548,6 +767,9 @@ async function overwriteSave(targetPath) {
         // 重新获取文档信息
         const docInfo = await getDocumentInfo(doc);
         
+        // 生成并保存缩略图缓存
+        await saveThumbnailToCache(doc, targetPath);
+        
         // 更新缩略图
         const thumbnail = await generateThumbnail(targetPath);
         
@@ -668,6 +890,62 @@ function formatTime(timestamp) {
     }
 }
 
+// 异步加载缩略图
+async function loadThumbnails() {
+    console.log('[缩略图加载] 开始加载...');
+    const uxp = require('uxp');
+    const fs = uxp.storage.localFileSystem;
+    const formats = uxp.storage.formats;
+    
+    let thumbFolder;
+    try {
+        const dataFolder = await fs.getDataFolder();
+        thumbFolder = await dataFolder.getEntry("thumbnails");
+    } catch (e) { 
+        console.log('[缩略图加载] 缩略图文件夹不存在');
+        return; 
+    }
+
+    const items = document.querySelectorAll('.thumbnail-image[data-hash]');
+    console.log(`[缩略图加载] 发现 ${items.length} 个待加载项`);
+    
+    for (const item of items) {
+        const hash = item.dataset.hash;
+        if (!hash) continue;
+        
+        try {
+            // console.log(`[缩略图加载] 尝试读取: ${hash}.jpg`);
+            const file = await thumbFolder.getEntry(hash + ".jpg");
+            const data = await file.read({format: formats.binary});
+            // console.log(`[缩略图加载] 读取成功，大小: ${data.byteLength}`);
+            const base64 = arrayBufferToBase64(data);
+            
+            if (base64) {
+                // console.log(`[缩略图加载] Base64转换成功`);
+                // 创建图片元素
+                const img = document.createElement('img');
+                img.src = `data:image/jpeg;base64,${base64}`;
+                img.style.cssText = "width:100%;height:100%;object-fit:contain;border-radius:4px;position:absolute;top:0;left:0;";
+                
+                // 隐藏占位符
+                const placeholder = item.querySelector('.thumb-placeholder');
+                if (placeholder) placeholder.style.visibility = 'hidden';
+                
+                item.appendChild(img);
+                item.removeAttribute('data-hash'); // 标记为已加载
+            }
+        } catch (e) {
+            // 文件不存在或读取失败，保持占位符显示
+            // 忽略文件不存在的错误，只记录其他错误
+            if (e.message && e.message.includes('Could not find an entry')) {
+                // console.log(`[缩略图加载] 缩略图不存在: ${hash}`);
+            } else {
+                console.log(`[缩略图加载] 加载失败 (${hash}):`, e);
+            }
+        }
+    }
+}
+
 // 渲染缩略图
 function renderThumbnails(activePath = null) {
     console.log('[渲染] 开始渲染缩略图...');
@@ -688,8 +966,8 @@ function renderThumbnails(activePath = null) {
             <div class="empty-state">
                 <div class="empty-state-icon">📁</div>
                 <div>暂无保存历史</div>
-                <div style="font-size: 11px; margin-top: 8px;">使用 Ctrl+S 保存文档或点击"保存当前文档"按钮</div>
-                <div style="font-size: 10px; margin-top: 4px; color: var(--uxp-host-text-color-secondary);">💡 点击"测试记录"按钮测试功能</div>
+                <div style="font-size: 11px; margin-top: 8px;">点击上方 "另存为" 按钮添加记录</div>
+                <div style="font-size: 10px; margin-top: 4px; color: var(--uxp-host-text-color-secondary);">双击列表项可快速覆盖保存</div>
             </div>
         `;
         return;
@@ -735,11 +1013,23 @@ function renderThumbnails(activePath = null) {
         if (isActive) {
              successOverlayHtml = '<div class="success-overlay">✔ 已保存</div>';
         }
+        
+        // 权限指示点 HTML
+        let tokenIndicatorHtml = '';
+        if (hasToken) {
+            tokenIndicatorHtml = '<div class="token-indicator" title="已获取写入权限"></div>';
+        }
+
+        // 缩略图哈希
+        const hash = getPathHash(record.path);
 
         html += `
             <div class="${itemClass}" data-path="${record.path}" data-id="${record.id}">
+                ${tokenIndicatorHtml}
                 <button class="delete-btn">×</button>
-                <div class="thumbnail-image" style="width: 100%; height: 64px; background: #333; display: flex; align-items: center; justify-content: center; color: #888; font-size: 20px; font-weight: bold; border-radius: 4px; margin-bottom: 6px;">${ext}</div>
+                <div class="thumbnail-image" data-hash="${hash}" style="width: 100%; height: 64px; background: #333; display: flex; align-items: center; justify-content: center; color: #888; font-size: 20px; font-weight: bold; border-radius: 4px; margin-bottom: 6px; position: relative; overflow: hidden;">
+                    <div class="thumb-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">${ext}</div>
+                </div>
                 <div class="thumbnail-info" style="width: 100%; text-align: center; overflow: hidden;">
                     <div style="font-size: 11px; color: #fff; margin: 2px 0; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${displayName}">${displayName}</div>
                     <div style="font-size: 9px; color: #aaa; margin: 1px 0;">${formatTime(record.timestamp)}</div>
@@ -751,7 +1041,9 @@ function renderThumbnails(activePath = null) {
     });
     
     container.innerHTML = html;
-    // 样式已在 CSS 中定义
+    
+    // 异步加载缩略图
+    setTimeout(loadThumbnails, 10);
     
     // 绑定事件
     const items = container.querySelectorAll('.thumbnail-item');
@@ -764,7 +1056,7 @@ function renderThumbnails(activePath = null) {
             e.stopPropagation();
             const confirmed = await showConfirm('确认删除', `确定要删除 "${record.filename}" 的历史记录吗？`);
             if (confirmed) {
-                removeFromHistory(record.id);
+                await removeFromHistory(record.id);
                 renderThumbnails();
             }
         };
@@ -802,7 +1094,7 @@ function renderThumbnails(activePath = null) {
         item.ondblclick = async () => {
             const confirmed = await showConfirm(
                 '确认覆盖保存',
-                `确定要将当前打开的文档覆盖保存到以下文件吗？\n\n${record.path}`
+                `覆盖以下文件：\n${record.path}`
             );
             if (confirmed) {
                 await overwriteSave(record.path);
@@ -898,7 +1190,10 @@ async function recordDocumentToHistory(eventType = 'unknown', overridePath = nul
             console.warn('[记录] 获取 Token 过程出错:', e);
         }
 
-        // 生成缩略图
+        // 生成并保存缩略图缓存
+        await saveThumbnailToCache(doc, savedPath);
+
+        // 生成缩略图 (旧逻辑)
         console.log('[记录] 开始生成缩略图...');
         const thumbnail = await generateThumbnail(savedPath);
         console.log('[记录] 缩略图生成完成');
@@ -1029,7 +1324,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearBtn.onclick = async () => {
             const confirmed = await showConfirm('确认清空', '确定要清空所有历史记录吗？此操作不可恢复！');
             if (confirmed) {
-                clearHistory();
+                await clearHistory();
                 renderThumbnails();
             }
         };

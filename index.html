@@ -82,12 +82,22 @@
       box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
 
-    .thumbnail-item.has-token {
-      border-color: rgba(76, 175, 80, 0.6);
-    }
-    
-    .thumbnail-item.has-token:hover {
-      border-color: #4caf50;
+    /* 移除旧的边框样式 */
+    /* .thumbnail-item.has-token { border-color: rgba(76, 175, 80, 0.6); } */
+    /* .thumbnail-item.has-token:hover { border-color: #4caf50; } */
+
+    /* 新增：左上角状态指示点 */
+    .token-indicator {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      width: 8px;
+      height: 8px;
+      background-color: #4caf50;
+      border-radius: 50%;
+      box-shadow: 0 0 4px rgba(76, 175, 80, 0.8);
+      z-index: 15;
+      pointer-events: none;
     }
 
     .thumbnail-image {
