@@ -1106,7 +1106,7 @@ function renderThumbnails(activePath = null) {
         html += `
             <div class="${itemClass}" data-path="${record.path}" data-id="${record.id}">
                 ${tokenIndicatorHtml}
-                <button class="delete-btn">×</button>
+                <img class="delete-btn" src="images/close.png" alt="delete" draggable="false" />
                 <div class="thumbnail-image" data-hash="${hash}" style="width: 100%; height: 64px; background: #333; display: flex; align-items: center; justify-content: center; color: #888; font-size: 20px; font-weight: bold; border-radius: 4px; margin-bottom: 6px; position: relative; overflow: hidden;">
                     <div class="thumb-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">${ext}</div>
                 </div>

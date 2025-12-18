@@ -73,7 +73,8 @@
       height: 128px;
       flex: 0 0 128px;
       box-sizing: border-box;
-      overflow: hidden;
+      /* 移除 overflow: hidden 以允许删除按钮悬挂在边缘 */
+      /* overflow: hidden; */
     }
 
     .thumbnail-item:hover {
@@ -168,33 +169,32 @@
 
     .delete-btn {
       position: absolute;
-      top: 2px;
-      right: 2px;
-      background: transparent;
-      color: #ff4444;
-      border: none;
-      width: 16px;
-      height: 16px;
+      top: 4px;
+      right: 4px;
+      width: 18px;
+      height: 18px;
+      display: block;
+      object-fit: contain;
       cursor: pointer;
       opacity: 0;
-      transition: all 0.2s;
-      font-size: 16px;
-      line-height: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 10;
-      font-weight: bold;
+      transition: opacity 0.2s;
+      z-index: 100;
+      background: transparent;
+      border: none;
+    }
+
+    /* 移除之前的伪元素样式 */
+    .delete-btn::before, .delete-btn::after {
+      display: none;
     }
 
     .thumbnail-item:hover .delete-btn {
       opacity: 1;
     }
 
+    /* 不要悬浮背景/圆形效果，只显示图片 */
     .delete-btn:hover {
-      color: #ff0000;
-      background: rgba(255, 0, 0, 0.1);
-      border-radius: 50%;
+      opacity: 1;
     }
 
     .empty-state {

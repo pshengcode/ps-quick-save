@@ -1,7 +1,7 @@
 {
   "id": "Test-mx05h8",
   "name": "Quick Save",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "main": "index.html",
   "manifestVersion": 5,
   "host": {
