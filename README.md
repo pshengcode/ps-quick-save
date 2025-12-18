@@ -4,6 +4,8 @@
 
 An efficient Photoshop UXP plugin focused on quick saving and overwriting documents. It records your "Save As" history and allows you to overwrite save the current document to a history path with a simple double-click.
 
+![Demo](images/use.gif)
+
 ## ✨ Key Features
 
 *   **💾 Save As & Record**: Save documents via the plugin's "Save As" button to automatically record file paths and thumbnails.
@@ -19,11 +21,12 @@ An efficient Photoshop UXP plugin focused on quick saving and overwriting docume
 1.  Get the `.ccx` installation package.
 2.  Double-click the file and follow the Adobe Creative Cloud prompts to complete installation.
 
-### Method 2: Developer Mode Install
-1.  Install **Adobe UXP Developer Tool**.
-2.  Enable "Developer Mode" in Photoshop Preferences.
-3.  Click "Add Plugin" in UXP Tool and select the `manifest.json` in this plugin directory.
-4.  Click "Load".
+### Method 2: Manual Install
+1.  Download this project and unzip it into a folder.
+2.  Copy the entire folder to the Photoshop `Plug-ins` directory.
+    *   Windows: `C:\Program Files\Adobe\Adobe Photoshop 202x\Plug-ins\`
+    *   macOS: `/Applications/Adobe Photoshop 202x/Plug-ins/`
+3.  Restart Photoshop.
 
 ## 📖 User Guide
 

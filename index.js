@@ -660,6 +660,12 @@ async function saveCurrentDocument() {
 
         // await showAlert('成功', `文档已另存为: ${docName}`);
     } catch (error) {
+        // 忽略用户取消或拒绝的错误
+        const errMsg = error.message || '';
+        if (errMsg.toLowerCase().includes('cancel') || errMsg.toLowerCase().includes('reject')) {
+            console.log('用户取消了保存操作');
+            return;
+        }
         console.error('保存文档失败:', error);
         await showAlert(t('error'), t('saveFail', error.message));
     }

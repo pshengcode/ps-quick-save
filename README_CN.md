@@ -2,6 +2,8 @@
 
 一个高效的 Photoshop UXP 插件，专注于快速保存和覆盖文档。它能记录您的“另存为”历史，并允许您通过简单的双击操作将当前文档覆盖保存到历史路径中。
 
+![演示](images/use.gif)
+
 ## ✨ 主要功能
 
 *   **💾 另存为并记录**：通过插件的“另存为”按钮保存文档，自动记录文件路径和缩略图。
@@ -17,11 +19,12 @@
 1.  获取 `.ccx` 安装包。
 2.  双击文件，按照 Adobe Creative Cloud 提示完成安装。
 
-### 方法 2：开发者模式安装
-1.  安装 **Adobe UXP Developer Tool**。
-2.  在 Photoshop 首选项中开启“启用开发者模式”。
-3.  在 UXP Tool 中点击 "Add Plugin"，选择本插件目录下的 `manifest.json`。
-4.  点击 "Load"。
+### 方法 2：手动安装
+1.  下载本项目并将文件解压到一个文件夹中。
+2.  将该文件夹放入 Photoshop 安装目录下的 `Plug-ins` 文件夹中。
+    *   Windows: `C:\Program Files\Adobe\Adobe Photoshop 202x\Plug-ins\`
+    *   macOS: `/Applications/Adobe Photoshop 202x/Plug-ins/`
+3.  重启 Photoshop。
 
 ## 📖 使用指南
 
