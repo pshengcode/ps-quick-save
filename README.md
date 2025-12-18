@@ -1,169 +1,58 @@
-# Photoshop 保存历史插件
+# Quick Save
 
-一个用于Photoshop的UXP插件，可以记录保存历史并以缩略图形式展示，方便快速覆盖保存文档。
+[中文版 (Chinese Version)](README_CN.md)
 
-## 功能特点
+An efficient Photoshop UXP plugin focused on quick saving and overwriting documents. It records your "Save As" history and allows you to overwrite save the current document to a history path with a simple double-click.
 
-✨ **保存历史记录** - 自动记录每次保存的文档信息
-🖼️ **缩略图展示** - 以直观的网格形式展示所有历史记录
-⚡ **快速覆盖** - 双击缩略图即可将当前文档覆盖保存到该文件
-🗑️ **灵活管理** - 可以删除单个历史或清空所有历史
-💾 **支持多格式** - 支持PSD、JPG、PNG等格式
+## ✨ Key Features
 
-## 系统要求
+*   **💾 Save As & Record**: Save documents via the plugin's "Save As" button to automatically record file paths and thumbnails.
+*   **⚡ Quick Overwrite**: **Double-click** a thumbnail in the history list to overwrite save the current open document to that location.
+*   **🖼️ High-Performance Thumbnails**: Uses a local caching mechanism to generate 128x128 HD thumbnails, loading quickly without bloating document size.
+*   **🌍 Multi-language Support**: Interface automatically adapts to Photoshop language settings (supports English and Simplified Chinese).
+*   **🔒 Permission Management**: Smartly manages file write permissions, displaying status via visual indicators (green dot in top-left corner).
+*   **🎨 Compact Interface**: Compact UI designed for professional workflows, supporting dark mode.
 
-- Adobe Photoshop 22.1.0 或更高版本
-- UXP 4.1.4 或更高版本
+## 🚀 Installation
 
-## 安装方法
+### Method 1: Double-click Install (Recommended)
+1.  Get the `.ccx` installation package.
+2.  Double-click the file and follow the Adobe Creative Cloud prompts to complete installation.
 
-1. 打开 Adobe UXP Developer Tool (UDT)
-2. 在 UDT 中点击 "Add Plugin"
-3. 选择本插件目录中的 `manifest.json` 文件
-4. 点击插件右侧的 "Load" 按钮加载插件
-5. 在 Photoshop 中通过 `插件 > 保存历史` 打开插件面板
+### Method 2: Developer Mode Install
+1.  Install **Adobe UXP Developer Tool**.
+2.  Enable "Developer Mode" in Photoshop Preferences.
+3.  Click "Add Plugin" in UXP Tool and select the `manifest.json` in this plugin directory.
+4.  Click "Load".
 
-## 使用方法
+## 📖 User Guide
 
-### 1. 保存并记录文档
+### 1. Add Record
+Click the **"Save As"** button at the top of the plugin panel.
+*   Select save format (PNG, JPG, TGA, PSD).
+*   Select save location.
+*   After successful save, the file will be automatically added to the history list below.
 
-**方式一：使用快捷键（推荐）**
-- 在 Photoshop 中打开或创建一个文档
-- 按 **Ctrl+S**（Windows）或 **Cmd+S**（Mac）保存文档
-- 或通过菜单 `文件 > 存储` 保存
-- 插件会自动检测保存操作并记录到历史
+### 2. Quick Overwrite
+When you need to update the current document to a history version:
+*   Find the target file in the list.
+*   **Double-click** the thumbnail.
+*   After confirming the prompt, the current document will directly overwrite the target file.
 
-**方式二：使用插件按钮**
-- 点击插件面板中的 **"保存当前文档"** 按钮
-- 如果是新文档，会提示选择保存位置
-- 保存成功后会显示成功提示
+### 3. Manage History
+*   **View Path**: Hover over the thumbnail to view the full file path.
+*   **Delete Record**: Click the **"×"** button in the top-right of the thumbnail to delete a single record (and its corresponding thumbnail cache).
+*   **Clear History**: Click the **"Clear"** button at the bottom to delete all records and cache.
 
-**注意**：使用 Ctrl+S 保存时，插件会静默记录，不会弹出提示
+## ⚙️ System Requirements
 
-### 2. 查看保存历史
+*   Adobe Photoshop 2021 (v22.1.0) or higher.
 
-- 所有保存过的文档会以缩略图形式显示在网格中
-- 每个缩略图显示：
-  - 文档预览图
-  - 文件名
-  - 保存时间（相对时间或具体时间）
-  - 文档尺寸（宽 × 高）
+## 📝 Notes
 
-### 3. 覆盖保存
-
-- **双击**任意历史记录的缩略图
-- 系统会弹出确认对话框
-- 确认后，当前打开的文档会覆盖保存到该文件
-- 历史记录中的缩略图会自动更新
-
-### 4. 删除历史记录
-
-- 将鼠标悬停在缩略图上
-- 点击右上角出现的 **"×"** 按钮
-- 确认后删除该条历史记录
-
-### 5. 清空所有历史
-
-- 点击 **"清空历史"** 按钮
-- 确认后清空所有历史记录
-- 注意：此操作不可恢复
-
-## 自动记录机制
-
-插件会在以下情况自动记录文档到历史：
-
-✅ **会自动记录：**
-- 使用 Ctrl+S / Cmd+S 快捷键保存
-- 通过菜单 `文件 > 存储` 保存
-- 使用插件的"保存当前文档"按钮
-
-❌ **不会记录：**
-- 文档还未保存过（需要先保存一次）
-- 使用 `另存为` 保存（因为路径改变）
-- 保存失败的情况
-
-💡 **智能更新：**
-- 如果同一个文件多次保存，会更新现有记录而不是创建新记录
-- 缩略图会自动更新为最新版本
-- 时间戳会更新为最后保存时间
-
-## 注意事项
-
-⚠️ **重要提示**
-
-1. **覆盖保存会替换原文件** - 双击缩略图后，原文件会被当前文档完全覆盖，请谨慎操作
-2. **历史记录存储在本地** - 历史记录保存在浏览器的 localStorage 中，最多保存50条
-3. **缩略图质量** - 缩略图是低质量压缩版本，不影响原文件质量
-4. **文件路径** - 如果原文件被移动或删除，覆盖保存可能失败
-5. **自动记录延迟** - 使用 Ctrl+S 保存后，插件会在0.5秒后记录（确保保存完成）
-
-## 工作流程建议
-
-### 场景1：项目版本管理
-1. 在项目的不同阶段保存文档
-2. 通过缩略图快速查看各个版本
-3. 需要回到某个版本时，打开对应文件，然后覆盖保存到当前版本
-
-### 场景2：批量修改相似文件
-1. 打开第一个文件并编辑
-2. 保存到历史
-3. 对其他文件重复相同操作
-4. 如需修改，打开模板文件，然后逐个双击历史覆盖保存
-
-### 场景3：快速迭代设计
-1. 保存设计的初始版本
-2. 进行修改并保存新版本
-3. 如不满意，打开之前的版本，双击覆盖当前版本
-4. 实现快速的设计迭代
-
-## 技术细节
-
-- **存储方式**：使用 localStorage 存储历史记录
-- **缩略图生成**：自动缩放文档并生成JPEG格式缩略图（最大300×300px）
-- **API调用**：使用 Photoshop batchPlay API 进行文档操作
-- **格式支持**：根据文件扩展名自动识别保存格式（PSD/JPG/PNG）
-
-## 已知限制
-
-- 最多保存50条历史记录（超出后自动删除最旧的记录）
-- 缩略图生成需要短暂的处理时间
-- 对于超大文档（>5GB），缩略图生成可能较慢
-
-## 故障排除
-
-**问题：插件无法加载**
-- 解决：检查 Photoshop 版本是否为 22.1.0 或更高
-
-**问题：保存失败**
-- 解决：确保有文件写入权限，检查磁盘空间是否充足
-
-**问题：缩略图显示为空白**
-- 解决：可能是文档过大或格式不支持，可以继续使用其他功能
-
-**问题：历史记录消失**
-- 解决：历史记录存储在 localStorage 中，清除浏览器数据会导致丢失
-
-## 版本历史
-
-### v1.0.1 (2025-12-17)
-- ✨ 新增自动监听 Ctrl+S 保存事件
-- 🔄 优化历史记录更新逻辑（同一文件会更新而非新增）
-- 📝 改进用户界面提示
-
-### v1.0.0 (2025-12-17)
-- 初始版本发布
-- 支持保存历史记录
-- 支持缩略图展示
-- 支持双击覆盖保存
-- 支持删除和清空历史
-
-## 反馈与支持
-
-如有问题或建议，欢迎反馈！
+*   **Overwrite is Irreversible**: Double-click overwrite save will directly replace the original file, please operate with caution.
+*   **Permission Indicator**: If a green dot appears in the top-left of the thumbnail, the plugin currently has write permission for that file; if not, permission may be requested again upon overwrite.
+*   **Cache Cleanup**: Deleting history records automatically cleans up the corresponding local thumbnail cache files to keep the system clean.
 
 ---
-
-**开发信息**
-- App Version: 22.1.0
-- UXP Version: 4.1.4
-- Manifest Version: 5
+*Developed for efficient workflow.*

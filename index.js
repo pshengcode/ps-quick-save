@@ -1,6 +1,80 @@
 // 全局变量
 let app, localFileSystem, storage;
 
+// 本地化资源
+const i18n = {
+    "en": {
+        "saveAs": "Save As",
+        "clear": "Clear",
+        "noHistory": "No History",
+        "addRecordHint": "Click 'Save As' above to add record",
+        "overwriteHint": "Double-click item to overwrite save",
+        "confirmDelete": "Confirm Delete",
+        "deleteMessage": "Are you sure you want to delete history for \"{0}\"?",
+        "confirmClear": "Confirm Clear",
+        "clearMessage": "Are you sure you want to clear all history? This cannot be undone!",
+        "confirmOverwrite": "Confirm Overwrite",
+        "overwriteMessage": "Overwrite the following file:\n{0}",
+        "saved": "Saved",
+        "error": "Error",
+        "success": "Success",
+        "noDoc": "No active document",
+        "saveSuccess": "Document saved as: {0}",
+        "saveFail": "Save failed: {0}"
+    },
+    "zh": {
+        "saveAs": "另存为",
+        "clear": "清空",
+        "noHistory": "暂无保存历史",
+        "addRecordHint": "点击上方 \"另存为\" 按钮添加记录",
+        "overwriteHint": "双击列表项可快速覆盖保存",
+        "confirmDelete": "确认删除",
+        "deleteMessage": "确定要删除 \"{0}\" 的历史记录吗？",
+        "confirmClear": "确认清空",
+        "clearMessage": "确定要清空所有历史记录吗？此操作不可恢复！",
+        "confirmOverwrite": "确认覆盖保存",
+        "overwriteMessage": "覆盖以下文件：\n{0}",
+        "saved": "已保存",
+        "error": "错误",
+        "success": "成功",
+        "noDoc": "没有打开的文档",
+        "saveSuccess": "文档已另存为: {0}",
+        "saveFail": "保存失败: {0}"
+    }
+};
+
+// 获取当前语言文本
+function t(key, ...args) {
+    try {
+        const uxp = require('uxp');
+        const locale = uxp.host.uiLocale || 'en';
+        const lang = locale.startsWith('zh') ? 'zh' : 'en';
+        let text = i18n[lang][key] || i18n['en'][key] || key;
+        
+        // 简单的参数替换 {0}, {1}...
+        args.forEach((arg, index) => {
+            text = text.replace(`{${index}}`, arg);
+        });
+        
+        return text;
+    } catch (e) {
+        return key;
+    }
+}
+
+// 更新 UI 文本
+function updateUILanguage() {
+    const map = {
+        'saveCurrentBtn': 'saveAs',
+        'clearHistoryBtn': 'clear'
+    };
+    
+    for (const [id, key] of Object.entries(map)) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = t(key);
+    }
+}
+
 // 存储历史记录的键
 const HISTORY_KEY = 'saveHistory';
 
@@ -587,7 +661,7 @@ async function saveCurrentDocument() {
         // await showAlert('成功', `文档已另存为: ${docName}`);
     } catch (error) {
         console.error('保存文档失败:', error);
-        await showAlert('错误', `保存失败: ${error.message}`);
+        await showAlert(t('error'), t('saveFail', error.message));
     }
 }
 
@@ -965,9 +1039,9 @@ function renderThumbnails(activePath = null) {
         container.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">📁</div>
-                <div>暂无保存历史</div>
-                <div style="font-size: 11px; margin-top: 8px;">点击上方 "另存为" 按钮添加记录</div>
-                <div style="font-size: 10px; margin-top: 4px; color: var(--uxp-host-text-color-secondary);">双击列表项可快速覆盖保存</div>
+                <div>${t('noHistory')}</div>
+                <div style="font-size: 11px; margin-top: 8px;">${t('addRecordHint')}</div>
+                <div style="font-size: 10px; margin-top: 4px; color: var(--uxp-host-text-color-secondary);">${t('overwriteHint')}</div>
             </div>
         `;
         return;
@@ -1011,7 +1085,7 @@ function renderThumbnails(activePath = null) {
         // 成功提示 HTML
         let successOverlayHtml = '';
         if (isActive) {
-             successOverlayHtml = '<div class="success-overlay">✔ 已保存</div>';
+             successOverlayHtml = `<div class="success-overlay">✔ ${t('saved')}</div>`;
         }
         
         // 权限指示点 HTML
@@ -1054,7 +1128,7 @@ function renderThumbnails(activePath = null) {
         const deleteBtn = item.querySelector('.delete-btn');
         deleteBtn.onclick = async (e) => {
             e.stopPropagation();
-            const confirmed = await showConfirm('确认删除', `确定要删除 "${record.filename}" 的历史记录吗？`);
+            const confirmed = await showConfirm(t('confirmDelete'), t('deleteMessage', record.filename));
             if (confirmed) {
                 await removeFromHistory(record.id);
                 renderThumbnails();
@@ -1093,8 +1167,8 @@ function renderThumbnails(activePath = null) {
         // 双击事件
         item.ondblclick = async () => {
             const confirmed = await showConfirm(
-                '确认覆盖保存',
-                `覆盖以下文件：\n${record.path}`
+                t('confirmOverwrite'),
+                t('overwriteMessage', record.path)
             );
             if (confirmed) {
                 await overwriteSave(record.path);
@@ -1257,6 +1331,9 @@ document.addEventListener('DOMContentLoaded', () => {
         storage = uxp.storage;
         localFileSystem = storage.localFileSystem;
         
+        // 初始化语言
+        updateUILanguage();
+        
         console.log('✅ 模块加载成功');
         console.log('- Photoshop app:', !!app);
         console.log('- Storage:', !!storage);
@@ -1322,7 +1399,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearBtn = document.getElementById('clearHistoryBtn');
     if (clearBtn) {
         clearBtn.onclick = async () => {
-            const confirmed = await showConfirm('确认清空', '确定要清空所有历史记录吗？此操作不可恢复！');
+            const confirmed = await showConfirm(t('confirmClear'), t('clearMessage'));
             if (confirmed) {
                 await clearHistory();
                 renderThumbnails();

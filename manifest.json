@@ -1,6 +1,6 @@
 {
   "id": "Test-mx05h8",
-  "name": "保存历史工具",
+  "name": "Quick Save",
   "version": "1.0.3",
   "main": "index.html",
   "manifestVersion": 5,
@@ -17,7 +17,7 @@
     {
       "type": "panel",
       "id": "mainPanel",
-      "label": "保存历史",
+      "label": "Quick Save",
       "minimumSize": {
         "width": 400,
         "height": 560
